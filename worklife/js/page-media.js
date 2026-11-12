@@ -74,6 +74,51 @@
     return { postId: postId, views: 0, interactions: 0, followers: 0 };
   }
 
+  function metricSummary(posts) {
+    var totalV = 0, totalI = 0, totalF = 0;
+    posts.forEach(function (p) {
+      var m = metricOf(p.id);
+      totalV += Number(m.views) || 0; totalI += Number(m.interactions) || 0; totalF += Number(m.followers) || 0;
+    });
+    var avg = posts.length ? Math.round(totalV / posts.length) : 0;
+    function stat(label, val, tid) {
+      return '<div class="stat"><div class="stat-label">' + label + '</div>' +
+        '<div class="stat-value" data-testid="' + tid + '">' + val + '</div></div>';
+    }
+    return '<div class="summary-grid">' +
+      stat('总阅读', totalV, 'metric-total-v') +
+      stat('总互动', totalI, 'metric-total-i') +
+      stat('总涨粉', totalF, 'metric-total-f') +
+      stat('平均阅读', avg, 'metric-avg-v') + '</div>';
+  }
+
+  function metricChart(posts) {
+    var ms = posts.map(function (p) { return metricOf(p.id); });
+    var maxV = Math.max.apply(null, ms.map(function (m) { return Number(m.views) || 0; }).concat([1]));
+    var maxI = Math.max.apply(null, ms.map(function (m) { return Number(m.interactions) || 0; }).concat([1]));
+    var maxF = Math.max.apply(null, ms.map(function (m) { return Number(m.followers) || 0; }).concat([1]));
+    var groups = posts.slice().reverse().map(function (p) {
+      var m = metricOf(p.id);
+      var hv = Math.max(2, Math.round((Number(m.views) || 0) / maxV * 100));
+      var hi = Math.max(2, Math.round((Number(m.interactions) || 0) / maxI * 100));
+      var hf = Math.max(2, Math.round((Number(m.followers) || 0) / maxF * 100));
+      var label = App.esc(p.title).slice(0, 8);
+      return '<div class="bar-group" data-testid="bar-group">' +
+        '<div class="bar-col">' +
+        '<div class="bar v" style="height:' + hv + '%" data-testid="bar-v"><title>' + (Number(m.views) || 0) + ' 阅读</title></div>' +
+        '<div class="bar i" style="height:' + hi + '%" data-testid="bar-i"><title>' + (Number(m.interactions) || 0) + ' 互动</title></div>' +
+        '<div class="bar f" style="height:' + hf + '%" data-testid="bar-f"><title>' + (Number(m.followers) || 0) + ' 涨粉</title></div>' +
+        '</div><div class="bar-label" title="' + App.esc(p.title) + '">' + label + '</div></div>';
+    }).join('');
+    return '<div class="card chart-wrap"><h3 class="card-title">发布数据对比 · 每根柱按该指标自身最大值归一化，悬停看具体数值</h3>' +
+      '<div class="chart" data-testid="media-chart">' + groups + '</div>' +
+      '<div class="chart-legend">' +
+      '<span class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>阅读</span>' +
+      '<span class="legend-item"><span class="legend-dot" style="background:var(--ok)"></span>互动</span>' +
+      '<span class="legend-item"><span class="legend-dot" style="background:var(--warn)"></span>涨粉</span>' +
+      '</div></div>';
+  }
+
   App.register('media', {
     title: '自媒体',
     desc: '从选题到发布数据',
@@ -122,9 +167,11 @@
               '<button type="button" class="btn btn-sm" data-post-del="' + p.id + '">删除</button></div>';
           }).join('') || App.ui.empty({ text: '还没有发布记录', actionLabel: '新增发布记录' }));
       } else {
-        body = (d.posts || []).length
-          ? '<div class="hint" style="margin-bottom:10px">填写每条发布后的数据，修改即时保存</div>' +
-            (d.posts || []).map(function (p) {
+        var posts = d.posts || [];
+        body = posts.length
+          ? metricSummary(posts) + metricChart(posts) +
+            '<div class="hint" style="margin:14px 0 10px">填写每条发布后的数据，修改即时保存；下方数字改动后上方图表会同步更新。</div>' +
+            posts.map(function (p) {
               var m = metricOf(p.id);
               return '<div class="row" data-field="postId,views,interactions,followers">' +
                 '<span class="row-main" style="min-width:150px">' + App.esc(p.title) + '<span class="row-sub">' + App.esc(p.date) + '</span></span>' +
@@ -210,6 +257,7 @@
             if (!found) { found = { id: App.uid(), postId: pid, views: 0, interactions: 0, followers: 0 }; m.push(found); }
             found[mkey] = num;
           });
+          App.shell.refresh();
         }
       };
 

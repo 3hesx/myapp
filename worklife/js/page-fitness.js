@@ -5,6 +5,9 @@
   var tab = 'week';
   var workoutDate = App.todayStr();
   var WEEK = [[1, '周一'], [2, '周二'], [3, '周三'], [4, '周四'], [5, '周五'], [6, '周六'], [7, '周日']];
+  var calY = new Date().getFullYear();
+  var calM = new Date().getMonth() + 1;
+  var fitnessDateFilter = false;
 
   function data() { return App.store.get().data.fitness; }
   function todayKey() {
@@ -117,6 +120,47 @@
     App.shell.refresh();
   }
 
+  function calendarView() {
+    var wk = App.store.get().settings.weekStartsOn;
+    var grid = App.monthGrid(calY, calM, wk);
+    var today = App.todayStr();
+    var byDate = {};
+    (data().workouts || []).forEach(function (w) {
+      (byDate[w.date] || (byDate[w.date] = [])).push(w);
+    });
+    var names = [];
+    for (var i = 0; i < 7; i++) names.push(App.weekNames[(wk + i) % 7]);
+    var cells = '';
+    for (var r = 0; r < 6; r++) {
+      for (var c = 0; c < 7; c++) {
+        var date = grid[r][c];
+        var p = App.parseDate(date);
+        var out = (p.y !== calY || p.m !== calM);
+        var items = byDate[date] || [];
+        var has = items.length > 0;
+        var tags = items.slice(0, 2).map(function (w) {
+          var e = App.find(data().exercises || [], w.exerciseId);
+          var part = e && e.part ? e.part : '';
+          return '<span class="cal-tag" title="' + App.esc((e ? e.name : '已删动作') + (part ? ' · ' + part : '') + ' ' + w.sets + '×' + w.reps) + '">' +
+            App.esc((part ? part + ' ' : '') + w.sets + '×' + w.reps) + '</span>';
+        }).join('');
+        if (items.length > 2) tags += '<span class="cal-more">+' + (items.length - 2) + '</span>';
+        var cls = 'cal-cell' + (date === today ? ' today' : '') + (out ? ' out' : '') + (has ? ' has' : '');
+        cells += '<div class="' + cls + '" data-cal-date="' + date + '" data-testid="cal-cell">' +
+          '<div class="cal-date">' + p.d + '</div>' +
+          (tags ? '<div class="cal-tags">' + tags + '</div>' : '') + '</div>';
+      }
+    }
+    var head = '<div class="cal-bar"><button type="button" class="btn btn-sm" data-testid="fitness-cal-prev">← 上月</button>' +
+      '<strong data-testid="fitness-cal-label">' + calY + ' 年 ' + calM + ' 月</strong>' +
+      '<div style="display:flex;gap:6px"><button type="button" class="btn btn-sm" data-testid="fitness-cal-today">本月</button>' +
+      '<button type="button" class="btn btn-sm" data-testid="fitness-cal-next">下月 →</button></div></div>';
+    return '<div class="card">' + head +
+      '<div class="cal-weekdays">' + names.map(function (n) { return '<span>' + n + '</span>'; }).join('') + '</div>' +
+      '<div class="cal-grid">' + cells + '</div></div>' +
+      '<div class="hint" style="margin-top:10px">点任意一天，跳到「训练记录」查看或补记当天的训练；月历本身只读。</div>';
+  }
+
   App.register('fitness', {
     title: '健身计划',
     desc: '周计划、训练日志与体重',
@@ -136,7 +180,7 @@
     render: function (box) {
       var d = data();
       var stats = weekStats();
-      var tabs = [['week', '本周计划'], ['workouts', '训练记录'], ['body', '身体数据']];
+      var tabs = [['week', '本周计划'], ['workouts', '训练记录'], ['body', '身体数据'], ['calendar', '月历']];
 
       var body = '';
       if (tab === 'week') {
@@ -150,10 +194,16 @@
           }).join('') + '</div>' +
           '<div class="hint" style="margin-top:10px">首页「今日应练」读取今天这一格；空白视为休息。</div></div>';
       } else if (tab === 'workouts') {
-        var workouts = (d.workouts || []).slice().sort(function (a, b) {
+        var workoutsAll = (d.workouts || []).slice().sort(function (a, b) {
           return String(b.date).localeCompare(String(a.date));
         });
-        body = '<div class="card"><div class="inline-form">' +
+        var workoutList = workoutsAll;
+        var fitnessFilterBanner = '';
+        if (fitnessDateFilter) {
+          workoutList = workoutsAll.filter(function (w) { return w.date === workoutDate; });
+          fitnessFilterBanner = '<div class="hint" style="margin-bottom:10px">正在查看 <strong>' + App.esc(App.fmtDate(workoutDate)) + '</strong> 的训练 · <button type="button" class="link-btn" data-testid="fitness-clear-filter">看全部</button></div>';
+        }
+        body = fitnessFilterBanner + '<div class="card"><div class="inline-form">' +
           '<label class="hint">日期 <input type="date" class="input" style="width:150px" data-testid="fitness-date" value="' + App.esc(workoutDate) + '"></label>' +
           '<button type="button" class="btn btn-primary btn-sm" data-testid="fitness-add-workout">+ 记一组训练</button></div>' +
           ((d.exercises || []).length ? '' : '<div class="hint">先在下方动作库添加一个动作，才能记录训练。</div>') +
@@ -169,14 +219,14 @@
               ' <button type="button" class="link-btn" data-exercise-del="' + e.id + '">×</button></span>';
           }).join('') || '<span class="hint">动作库还是空的</span>') + '</div></div>' +
           '<div class="card"><h3 class="card-title">训练记录 · 按日期倒序</h3>' +
-          (workouts.map(function (w) {
+          (workoutList.map(function (w) {
             return '<div class="row" data-field="date,exerciseId,sets,reps,weight">' +
               '<span class="row-main"><strong>' + App.esc(exerciseName(w.exerciseId)) + '</strong>' +
               '<span class="row-sub">' + App.esc(w.date) + ' · ' + App.esc(w.sets) + ' 组 × ' + App.esc(w.reps) + ' 次 · ' + App.esc(w.weight) + ' kg</span></span>' +
               '<button type="button" class="btn btn-sm" data-workout-edit="' + w.id + '">编辑</button>' +
               '<button type="button" class="btn btn-sm" data-workout-del="' + w.id + '">删除</button></div>';
           }).join('') || App.ui.empty({ text: '还没有训练记录', actionLabel: '记一组训练' })) + '</div>';
-      } else {
+      } else if (tab === 'body') {
         var bodies = (d.body || []).slice().sort(function (a, b) {
           return String(b.date).localeCompare(String(a.date));
         });
@@ -189,6 +239,8 @@
               '<button type="button" class="btn btn-sm" data-body-edit="' + b.id + '">编辑</button>' +
               '<button type="button" class="btn btn-sm" data-body-del="' + b.id + '">删除</button></div>';
           }).join('') || App.ui.empty({ text: '还没有身体数据', actionLabel: '记一次体重' })) + '</div>';
+      } else {
+        body = calendarView();
       }
 
       box.innerHTML =
@@ -209,7 +261,17 @@
       box.onclick = function (e) {
         var t = e.target;
         var tabBtn = t.closest && t.closest('[data-fitness-tab]');
-        if (tabBtn) { tab = tabBtn.getAttribute('data-fitness-tab'); App.shell.refresh(); return; }
+        if (tabBtn) { tab = tabBtn.getAttribute('data-fitness-tab'); if (tab === 'workouts') fitnessDateFilter = false; App.shell.refresh(); return; }
+        var calPrev = t.closest && t.closest('[data-testid="fitness-cal-prev"]');
+        if (calPrev) { var pm = App.addMonths(calY, calM, -1); calY = pm.y; calM = pm.m; App.shell.refresh(); return; }
+        var calNext = t.closest && t.closest('[data-testid="fitness-cal-next"]');
+        if (calNext) { var nm = App.addMonths(calY, calM, 1); calY = nm.y; calM = nm.m; App.shell.refresh(); return; }
+        var calToday = t.closest && t.closest('[data-testid="fitness-cal-today"]');
+        if (calToday) { var nd = new Date(); calY = nd.getFullYear(); calM = nd.getMonth() + 1; App.shell.refresh(); return; }
+        var calCell = t.closest && t.closest('[data-cal-date]');
+        if (calCell) { workoutDate = calCell.getAttribute('data-cal-date'); fitnessDateFilter = true; tab = 'workouts'; App.shell.refresh(); return; }
+        var clearF = t.closest && t.closest('[data-testid="fitness-clear-filter"]');
+        if (clearF) { fitnessDateFilter = false; App.shell.refresh(); return; }
         var hit = t.closest && t.closest('[data-testid]');
         var testid = hit ? hit.getAttribute('data-testid') : '';
         if (testid === 'fitness-add-workout') { workoutDrawer(null); return; }
@@ -244,6 +306,7 @@
         var t = e.target;
         if (t.getAttribute && t.getAttribute('data-testid') === 'fitness-date') {
           workoutDate = t.value || App.todayStr();
+          if (fitnessDateFilter) App.shell.refresh();
           return;
         }
         if (t.hasAttribute && t.hasAttribute('data-week-day')) {

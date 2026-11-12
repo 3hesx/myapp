@@ -5,7 +5,7 @@
   var selected = null;
   var tab = 'tasks';
 
-  function projectDrawer(existing) {
+  function projectDrawer(existing, onCreated) {
     App.ui.drawer({
       title: existing ? '编辑项目' : '新增项目',
       fields: [
@@ -25,13 +25,18 @@
           }
         });
         App.shell.refresh();
+        if (onCreated) { onCreated(); return false; }
       }
     });
   }
 
   function taskDrawer(existing) {
     var st = App.store.get();
-    if (!st.data.dev.projects.length) { App.ui.toast('请先新增一个项目', 'error'); return; }
+    if (!st.data.dev.projects.length) {
+      App.ui.toast('请先新建一个项目，再添加任务', 'warn');
+      projectDrawer(null, function () { taskDrawer(null); });
+      return;
+    }
     App.ui.drawer({
       title: existing ? '编辑任务 / Bug' : '新增任务 / Bug',
       fields: [
@@ -108,7 +113,7 @@
       var right = '';
       if (tab === 'tasks') {
         right = '<div class="card"><div class="inline-form"><h3 class="card-title" style="margin:0;flex:1">任务与 Bug</h3>' +
-          '<button type="button" class="btn btn-sm" data-testid="dev-add-task">+ 新增</button></div>' +
+          '<button type="button" class="btn btn-sm" data-testid="dev-add-task">+ 新增任务</button></div>' +
           (selected ? (tasks.map(function (t) {
             return '<div class="row" data-field="title,type,priority,status">' +
               '<span class="row-main"><strong>' + App.esc(t.title) + '</strong>' +
@@ -120,7 +125,7 @@
             : '<div class="hint">先在左侧新增并选择一个项目</div>') + '</div>';
       } else {
         right = '<div class="card"><div class="inline-form"><h3 class="card-title" style="margin:0;flex:1">代码与命令速记</h3>' +
-          '<button type="button" class="btn btn-sm" data-testid="dev-add-snippet">+ 新增</button></div>' +
+          '<button type="button" class="btn btn-sm" data-testid="dev-add-snippet">+ 新增速记</button></div>' +
           ((d.snippets || []).slice().reverse().map(function (s) {
             return '<div class="row" data-field="text,tag"><span class="row-main"><strong>' + App.esc(s.text) + '</strong>' +
               '<span class="row-sub">' + App.esc(s.tag || '未分类') + '</span></span>' +

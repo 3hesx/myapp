@@ -8,7 +8,8 @@ const STAGES = [
   ['阶段 2 · 首页与今日计划', 'stage2.test.js'],
   ['阶段 3 · 工作三模块', 'stage3.test.js'],
   ['阶段 4 · 生活三模块', 'stage4.test.js'],
-  ['阶段 5 · 收口与全量验收', 'stage5.test.js']
+  ['阶段 5 · 收口与全量验收', 'stage5.test.js'],
+  ['阶段 6 · v1.1 用户反馈增强', 'stage6.test.js']
 ];
 
 async function main() {

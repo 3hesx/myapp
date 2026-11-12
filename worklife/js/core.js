@@ -81,6 +81,30 @@
     return arr.reduce(function (a, b) { return a + (Number(fn(b)) || 0); }, 0);
   };
   App.monthKey = function (dateStr) { return String(dateStr).slice(0, 7); };
+  App.parseDate = function (str) {
+    var p = String(str).split('-').map(Number);
+    return { y: p[0], m: p[1], d: p[2] };
+  };
+  App.addMonths = function (y, m, delta) {
+    var t = new Date(y, m - 1 + delta, 1);
+    return { y: t.getFullYear(), m: t.getMonth() + 1 };
+  };
+  App.monthGrid = function (year, month, startsOn) {
+    startsOn = (startsOn === 0 || startsOn === 1) ? startsOn : 1;
+    var first = new Date(year, month - 1, 1);
+    var offset = (first.getDay() - (startsOn === 0 ? 0 : 1) + 7) % 7;
+    var cur = new Date(year, month - 1, 1 - offset);
+    var weeks = [];
+    for (var w = 0; w < 6; w++) {
+      var week = [];
+      for (var d = 0; d < 7; d++) {
+        week.push(App.todayStr(new Date(cur.getFullYear(), cur.getMonth(), cur.getDate())));
+        cur.setDate(cur.getDate() + 1);
+      }
+      weeks.push(week);
+    }
+    return weeks;
+  };
   App.weekStart = function (dateStr, startsOn) {
     var p = String(dateStr).split('-').map(Number);
     var d = new Date(p[0], p[1] - 1, p[2]);

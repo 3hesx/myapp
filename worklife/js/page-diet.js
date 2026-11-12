@@ -5,6 +5,9 @@
   var viewDate = App.todayStr();
   var targetMeal = 'breakfast';
   var MEALS = [['breakfast', '早餐'], ['lunch', '午餐'], ['dinner', '晚餐'], ['snack', '加餐']];
+  var tab = 'day';
+  var calY = new Date().getFullYear();
+  var calM = new Date().getMonth() + 1;
 
   function isPast() { return viewDate < App.todayStr(); }
 
@@ -59,6 +62,42 @@
     App.shell.refresh();
   }
 
+  function calendarView() {
+    var wk = App.store.get().settings.weekStartsOn;
+    var grid = App.monthGrid(calY, calM, wk);
+    var today = App.todayStr();
+    var days = App.store.get().data.diet.days || {};
+    var names = [];
+    for (var i = 0; i < 7; i++) names.push(App.weekNames[(wk + i) % 7]);
+    var cells = '';
+    for (var r = 0; r < 6; r++) {
+      for (var c = 0; c < 7; c++) {
+        var date = grid[r][c];
+        var p = App.parseDate(date);
+        var out = (p.y !== calY || p.m !== calM);
+        var dayObj = days[date];
+        var meals = dayObj ? MEALS.filter(function (m) { return (dayObj[m[0]] || []).length > 0; }).length : 0;
+        var water = dayObj ? (Number(dayObj.water) || 0) : 0;
+        var has = meals > 0 || water > 0;
+        var tags = '';
+        if (meals) tags += '<span class="cal-tag ok" title="' + meals + ' 餐已记录">' + meals + ' 餐</span>';
+        if (water) tags += '<span class="cal-tag" title="饮水 ' + water + ' 杯">水 ' + water + '</span>';
+        var cls = 'cal-cell' + (date === today ? ' today' : '') + (out ? ' out' : '') + (has ? ' has' : '');
+        cells += '<div class="' + cls + '" data-cal-date="' + date + '" data-testid="cal-cell">' +
+          '<div class="cal-date">' + p.d + '</div>' +
+          (tags ? '<div class="cal-tags">' + tags + '</div>' : '') + '</div>';
+      }
+    }
+    var head = '<div class="cal-bar"><button type="button" class="btn btn-sm" data-testid="diet-cal-prev">← 上月</button>' +
+      '<strong data-testid="diet-cal-label">' + calY + ' 年 ' + calM + ' 月</strong>' +
+      '<div style="display:flex;gap:6px"><button type="button" class="btn btn-sm" data-testid="diet-cal-today">本月</button>' +
+      '<button type="button" class="btn btn-sm" data-testid="diet-cal-next">下月 →</button></div></div>';
+    return '<div class="card">' + head +
+      '<div class="cal-weekdays">' + names.map(function (n) { return '<span>' + n + '</span>'; }).join('') + '</div>' +
+      '<div class="cal-grid">' + cells + '</div></div>' +
+      '<div class="hint" style="margin-top:10px">点任意一天，跳到「当日」查看或补记那天的饮食；过去的日期在历史中只读。</div>';
+  }
+
   App.register('diet', {
     title: '饮食计划',
     desc: '按天记四餐、饮水与小结',
@@ -95,7 +134,7 @@
           '</div>';
       }).join('');
 
-      box.innerHTML =
+      var dayBody =
         '<div class="card"><div class="inline-form" style="margin-bottom:0">' +
         '<button type="button" class="btn btn-sm" data-testid="diet-prev">← 前一天</button>' +
         '<strong data-testid="diet-date" style="min-width:150px;text-align:center">' + App.esc(App.fmtDate(viewDate)) + '</strong>' +
@@ -133,8 +172,23 @@
         '<div class="hint" style="margin-top:6px">不计算卡路里，只记一句自己的观察；改完即时保存。</div></div>' +
         '</div>';
 
+      var dietTabs = '<div class="tabs">' + [['day', '当日'], ['calendar', '月历']].map(function (tp) {
+        return '<button type="button" class="tab' + (tab === tp[0] ? ' active' : '') + '" data-diet-tab="' + tp[0] + '">' + tp[1] + '</button>';
+      }).join('') + '</div>';
+      box.innerHTML = dietTabs + (tab === 'calendar' ? calendarView() : dayBody);
+
       box.onclick = function (e) {
         var t = e.target;
+        var tabBtn = t.closest && t.closest('[data-diet-tab]');
+        if (tabBtn) { tab = tabBtn.getAttribute('data-diet-tab'); App.shell.refresh(); return; }
+        var calPrev = t.closest && t.closest('[data-testid="diet-cal-prev"]');
+        if (calPrev) { var pm = App.addMonths(calY, calM, -1); calY = pm.y; calM = pm.m; App.shell.refresh(); return; }
+        var calNext = t.closest && t.closest('[data-testid="diet-cal-next"]');
+        if (calNext) { var nm = App.addMonths(calY, calM, 1); calY = nm.y; calM = nm.m; App.shell.refresh(); return; }
+        var calToday = t.closest && t.closest('[data-testid="diet-cal-today"]');
+        if (calToday) { var nd = new Date(); calY = nd.getFullYear(); calM = nd.getMonth() + 1; App.shell.refresh(); return; }
+        var calCell = t.closest && t.closest('[data-cal-date]');
+        if (calCell) { viewDate = calCell.getAttribute('data-cal-date'); tab = 'day'; App.shell.refresh(); return; }
         var hit = t.closest && t.closest('[data-testid]');
         var testid = hit ? hit.getAttribute('data-testid') : '';
         if (testid === 'diet-prev') { viewDate = App.shiftDate(viewDate, -1); App.shell.refresh(); return; }

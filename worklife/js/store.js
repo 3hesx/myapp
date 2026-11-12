@@ -90,6 +90,7 @@
     fn(state);
     var ok = save();
     if (ok && !silent && App.ui && App.ui.toast) App.ui.toast('已保存');
+    if (ok) App.emit('saved');
     return ok;
   }
 

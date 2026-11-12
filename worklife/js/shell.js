@@ -17,6 +17,17 @@
     doc.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
   }
 
+  var saveTimer = null;
+  function showSaved() {
+    var el = doc.getElementById('save-indicator');
+    if (!el) return;
+    el.textContent = '已自动保存 ✓';
+    el.classList.add('show');
+    if (saveTimer) root.clearTimeout(saveTimer);
+    saveTimer = root.setTimeout(function () { el.classList.remove('show'); }, 1800);
+  }
+  App.on('saved', showSaved);
+
   function updateStorageStatus() {
     var el = doc.getElementById('storage-status');
     if (!el) return;
