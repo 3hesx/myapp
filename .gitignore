@@ -1,0 +1,12 @@
+# WorkBuddy 工具元数据（机器相关，不纳入版本）
+.workbuddy/
+
+# 操作系统生成文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# 编辑器临时文件
+*.swp
+*~
